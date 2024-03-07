@@ -28,7 +28,7 @@ def process_song_file(cur, filepath):
     try:
         cur.execute(song_table_insert, song_data)
     except psycopg2.Error as e:
-        print("Error: Could not insert the row in the songs table")
+        print("Error: No se pudo insertar la fila en la tabla de canciones.")
         print(e)
         error = True
     
@@ -68,8 +68,12 @@ def process_log_file(cur, filepath):
     t = pd.to_datetime(df.ts, unit='ms')
     
     # insert time data records
-    time_data = list( (t.dt.time.tolist(), t.dt.hour.tolist(), t.dt.day.tolist(), t.dt.week.tolist(), 
-                       t.dt.month.tolist(), t.dt.year.tolist(), t.dt.weekday.tolist()) )
+    
+    # Obtener la semana del año utilizando dt.isocalendar().week
+    time_data = list((t.dt.time.tolist(), t.dt.hour.tolist(), t.dt.day.tolist(), t.dt.isocalendar().week.tolist(), 
+                      t.dt.month.tolist(), t.dt.year.tolist(), t.dt.weekday.tolist()))
+
+
     
     column_labels = ('timestamp','hour', 'day', 'week', 'month', 'year', 'weekday')
     
@@ -154,7 +158,7 @@ def process_data(cur, conn, filepath, func):
 
 
 def main():
-    conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
+    conn = psycopg2.connect("host=192.168.1.100 dbname=sparkifydb user=anthonylinux password=wolfteam158")
     cur = conn.cursor()
 
     process_data(cur, conn, filepath='data/song_data', func=process_song_file)

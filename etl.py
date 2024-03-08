@@ -9,49 +9,43 @@ song_rows = 0;
 log_rows = 0;
 
 
-def process_song_file(cur, filepath):
+def process_song_file(cur, conn, filepath):
     """Reads a song file and fills the users and artists tables
-    
        Input Arguments: cur - cursor, filepath -  filepath of a song file       
     """
-    error = False
     global song_rows
-    print(filepath)
+    n_song = 0
+    
     # open song file
     try:
         df = pd.read_json(filepath, lines=False)
     except ValueError as e:
         df = pd.read_json(filepath, lines=True)
 
-    # insert song record
     print('File: {} ; Records: {}'.format(filepath, len(df)))
     
-    song_data = df[["song_id","title","artist_id","year","duration"]].values[0].tolist()
-    
-    try:
-        cur.execute(song_table_insert, song_data)
-    except psycopg2.Error as e:
-        print("Error: No se pudo insertar la fila en la tabla de canciones.")
-        print(e)
-        error = True
-    
-    # insert artist record
-    artist_data = df[["artist_id","artist_name","artist_location",
-                      "artist_latitude","artist_longitude"]].values[0].tolist()
-    
-    try:
-        cur.execute(artist_table_insert, artist_data)
-    except psycopg2.Error as e:
-        print("Error: Could not insert the row in the artists table")
-        print(e)
-        error = True
-     
+    for index, row in df.iterrows():
+        try:
+            # insert song record
+            song_data = (row.song_id, row.title, row.artist_id, row.year, row.duration)
+            cur.execute(song_table_insert, song_data)
+            # insert artist record
+            artist_data = (row.artist_id, row.artist_name, row.artist_location,
+                           row.artist_latitude, row.artist_longitude)
+            cur.execute(artist_table_insert, artist_data)
+        except psycopg2.Error as e:
+            print(f"Error: No se pudo procesar song_data #record:{index} - {e}")
+            conn.rollback()
+            n_song = n_song + 1
+                    
     # Count the number of row proccesed without errors
-    if error == False:
-        song_rows += len(df)
+    if n_song == 0:
+        song_rows += len(df) 
+    else:
+        song_rows += len(df) - n_song
 
 
-def process_log_file(cur, filepath):    
+def process_log_file(cur, conn, filepath):    
     """Reads a log file and fills the time, users and songplay tables
     
        Input Arguments: cur - cursor, filepath -  filepath of a log file       
@@ -77,7 +71,6 @@ def process_log_file(cur, filepath):
                       t.dt.month.tolist(), t.dt.year.tolist(), t.dt.weekday.tolist()))
 
 
-    
     column_labels = ('timestamp','hour', 'day', 'week', 'month', 'year', 'weekday')
     
     time_df = pd.DataFrame.from_dict({column_labels[0]:time_data[0], column_labels[1]:time_data[1], 
@@ -155,7 +148,7 @@ def process_data(cur, conn, filepath, func):
 
     # iterate over files and process
     for i, datafile in enumerate(all_files, 1):
-        func(cur, datafile)
+        func(cur, conn, datafile)
         conn.commit()
         print('{}/{} files processed.'.format(i, num_files))
 
